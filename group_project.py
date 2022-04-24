@@ -331,12 +331,37 @@ elif user_type=='DataBase_Admin':
         cur.execute("Select P.C_Name as Category, sum(P.Price*C.Quantity) as TotalSales from Orders as O, Consist_of as C, Product P where C.P_ID = P.P_ID and O.O_ID = C.O_ID and MONTH(PurchaseDate) = %s group by P.C_Name order by TotalSales desc;",(x,))
         return cur.fetchall()
 
+    def get_Employee_List():
+        cur.execute("Select E_ID from Employee where E_ID Not  in (Select E_ID from view_Manager);")
+        return cur.fetchall()
+    
+    def getCategory():
+        cur.execute("Select C_Name from Category;")
+        return cur.fetchall()
+
+    def AppointManager(category,id):
+        cur.execute("Insert into Manages Values(%s,%s,curdate());",(str(category),str(id)))
+
+
     st.info("\t\t\tData Base Admin Portal")
     helper.cart={}
     helper.order_Value=0
     option=st.sidebar.selectbox("Drop Down Menu ",["Appoint New Category Manager","Analyse Orders Revenue Record","Analyse Subscriptions Record"])
     if(option=="Appoint New Category Manager"):
         st.subheader("Appointing New Category Manager")
+        employee_list=get_Employee_List()   #Needed
+        employee_list=pd.DataFrame(employee_list,columns=["Employee ID"])
+        selected=st.selectbox("Select an ID of Employee to be promoted",employee_list)
+        category_lst=getCategory()
+        category_lst=pd.DataFrame(category_lst,columns=["Category"])
+        cat_selected=st.selectbox("Select the Category ",category_lst)
+        if(cat_selected and selected and st.button("Promote Above Employee ")):
+            with st.spinner("Processing ..."):
+                time.sleep(2)
+            st.success("Succesfully Appointed !")
+            AppointManager(cat_selected,selected)
+            session.commit()
+
 
     elif (option=="Analyse Orders Revenue Record"):
         helper.cart={}
@@ -388,7 +413,7 @@ elif user_type=='DataBase_Admin':
         plt.bar(subscription_ids, Number_Of_Users, color ='yellow',width = 0.4)
         plt.xlabel("Subscription ID")
         plt.ylabel("Number of Users enrolled")
-        plt.title("Plot of Subscription vs Number of Puchases")
+        plt.title("Plot of Subscription vs Number of Purchases")
         fig=plt.show()        
         st.set_option('deprecation.showPyplotGlobalUse', False)
         st.pyplot(fig)
