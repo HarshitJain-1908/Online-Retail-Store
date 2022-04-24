@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import helper as helper
 import time as time
+import random as rand
 
 user_type=st.sidebar.selectbox("Select the User",["DataBase_Admin",'User','Vendor','Employee','Delivery_Agent'])
 st.title("ShOpSTop")
@@ -103,6 +104,26 @@ elif user_type=='User':
         cur.execute("select Quantity from product order by P_ID;")
         return cur.fetchall()
 
+    def Place_Order(id):    # Generate order --> net amount is done via triggers implemented after consist_of is filled up
+        cur.execute("Insert into Orders Values (%s,curdate(),%s,%s);",(str(helper.order_id),str(0),str(id)))
+
+    def Assign_DeliveryAgent(id):
+        n=rand.randint(1,21)
+        cur.execute("Insert into delivers Values (%s,%s,%s)",(str(n),str(helper.order_id),'NO'))
+
+    def Add_OrderDetails(p_id,qty):
+        cur.execute("Insert into consist_of Values(%s,%s,%s)",(str(helper.order_id),str(p_id),str(qty)))
+
+    def Modify_Inventory(p_id,qty):
+        cur.execute("Update Product set Quantity=Quantity-%s where P_ID=%s",(str(qty),str(p_id)))
+
+    def ifSubscriber(id):
+        cur.execute("Select S_ID from still_active where U_ID=%s;",(id,))
+        return cur.fetchall()
+
+    def Finalise_Amount():
+        cur.execute("Update Orders Set Net_Amount = %s where O_ID=%s",(str(int(float(helper.order_Value) * (1-(float(discount)/100.0)))),str(helper.order_id)))
+
     cur=session.cursor()
     product_lst=ProductsIDtoProductName()
     product_dict={}         # Dictionary which contains product_id --> [product_Name,product_Price]
@@ -128,7 +149,7 @@ elif user_type=='User':
     category_lst=pd.DataFrame(category_lst)
     subscription_dict={1:["3 Months","3%","300₹"],2:["6 Months","5%","600₹"],3:["12 Months","8%","1200₹"]}
 
-    x=st.sidebar.text_input("User ID [ U_ID ]")
+    x=st.sidebar.text_input("User ID")
     st.success("Logged in with User ID : {}".format(x))
     option=st.sidebar.selectbox("Menu ",["Personal Information","Order History","Subscription History","Place An Order"])
 
@@ -171,23 +192,22 @@ elif user_type=='User':
         st.table(lst)
 
     else:
-        #Important Points --> We have to maintain a net order_value to be shown on frontend (trigger is used for backend)   [Done]
-        #                 --> Use a slidebar for quantity to be selected 
-        #                 --> We have to maintain a list containing a nested list--> [P_ID,Quantity]
-        #                 --> if the above cart is not empty and submit button is entered , we insert into  order Table  
-        #                 --> Note, net amount is dependent on the fact whether there is any subscription or not as well 
-        #                 --> Then we insert value into consist_of table (and trigger will automatically update amount in Order_Tble)
-        #                 --> Then we randomly assign any delivery agent to it with false status of delivery 
-        #                 --> Run a query to check for subscription --> if present , fetch subscription id --> update the net amount insql table 
         st.subheader("Choose Category  ")
         product_qty=Get_Product_Qty()
         product_quantity={} #dictionary for mapping product id --> product quantity 
         for i in range(len(product_qty)):
             product_quantity[i+1]=product_qty[i]
-       
+        #Checking if active subscriber
+        discount=0 
+        subscriber=ifSubscriber(x)
+        # st.write(subscriber[0][0])
+        if(len(subscriber)==0):
+            discount=0
+        else:
+            discount=subscription_dict[subscriber[0][0]][1][0]
         category_selected=st.selectbox("Select The Category of Product",category_lst)
         product_selected=st.selectbox("Products Available in this Category",Category_ProdName[category_selected])
-        quantity_selected=st.slider("Available Quantity",0,int(product_quantity[productNametoID[product_selected]][0]),step=1)
+        quantity_selected=st.slider("Available Quantity",0,min(int(product_quantity[productNametoID[product_selected]][0]),10),step=1)  #Max qty -->10
         st.write("Cost per Unit = ",product_dict[productNametoID[product_selected]][1])     #Cost per unit
         sub_total=int(product_dict[productNametoID[product_selected]][1])*int(quantity_selected)    # Total cost if purchased 
         st.write("Cost of ",quantity_selected," ",product_selected," =",sub_total)
@@ -201,7 +221,11 @@ elif user_type=='User':
                 else:
                     helper.cart[product_selected]=[quantity_selected,int(quantity_selected)*int(product_dict[productNametoID[product_selected]][1])]
                     helper.order_Value+=sub_total
-        st.markdown('**Net Amount _before_ Discount**: '+ str(helper.order_Value))
+        if(discount==0):
+            st.markdown('**Cart Value**: '+ str(helper.order_Value))
+        else:
+            st.markdown('**Cart Value _before_ Discount**: '+ str(helper.order_Value))
+            st.markdown('**Cart Value _AFTER_ Discount**: '+ str(int(float(helper.order_Value) * (1-(float(discount)/100.0))))) #to be done ! 
         check=st.button("Check Cart")
         if(check):
             st.info("Format is Row_Wise : Product, Quantity, Subtotal ")
@@ -214,10 +238,19 @@ elif user_type=='User':
                 with st.spinner("Processing Your Order"):
                     time.sleep(2)
                 st.success("Order has been Successfully Placed!")
-        #At last if order_placed --> flush the cart and order_Value
-        #Also we need to flush the value once a new user enters --> Again maintain a global value for value of x
-        # We need to flush the value if a different type of user comes in
-
+                Place_Order(int(x))     #Creating The Order with the given amount 
+                Assign_DeliveryAgent(x) #Assigning the delivery agent using random lib    
+                for product in helper.cart:
+                    p_id=productNametoID[product]
+                    qty=helper.cart[product][0]
+                    Add_OrderDetails(p_id,qty)  #Consist_OF insertion operation and triggers usage for final amount changing
+                    Modify_Inventory(p_id,qty)  #inventory modification according to order
+                if(discount):
+                    Finalise_Amount()           #Changing the final amount in order table using if subscriber function --> discount > 0
+                session.commit()                # Committing the Change in the DataBase 
+                helper.order_id+=1
+                helper.cart={}
+                helper.order_Value=0
 
 elif user_type=='DataBase_Admin':
     session=mysql.connector.connect(
