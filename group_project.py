@@ -5,6 +5,8 @@ import numpy as np
 import helper as helper
 import time as time
 import random as rand
+import matplotlib.pyplot as plt 
+import plotly.express as px
 
 user_type=st.sidebar.selectbox("Select the User",["DataBase_Admin",'User','Vendor','Employee','Delivery_Agent'])
 st.title("ShOpSTop")
@@ -107,6 +109,7 @@ elif user_type=='User':
     def Place_Order(id):    # Generate order --> net amount is done via triggers implemented after consist_of is filled up
         temp=helper.FindOrder_ID()
         order_id=1+temp[0][0]
+        st.write(order_id)
         cur.execute("Insert into Orders Values (%s,curdate(),%s,%s);",(str(order_id),str(0),str(id)))
 
     def Assign_DeliveryAgent(id):
@@ -128,6 +131,8 @@ elif user_type=='User':
         return cur.fetchall()
 
     def Finalise_Amount():
+        temp=helper.FindOrder_ID()
+        order_id=1+temp[0][0]
         cur.execute("Update Orders Set Net_Amount = %s where O_ID=%s",(str(int(float(helper.order_Value) * (1-(float(discount)/100.0)))),str(order_id)))
 
     def CreateAccount(id,fn,ln,mail,pin,apt_num,street_name,age_val,contact_info):
@@ -161,7 +166,7 @@ elif user_type=='User':
     temp=helper.Finduser_ID();
     user_id=1+temp[0][0];
     
-    if(x!='' and (int(x)<1 or int(x)>=user_id)):
+    if(x!='' and (int(x)<1 or int(x)>user_id)):
         st.subheader("No such record exists!")
     else:
        
@@ -189,8 +194,9 @@ elif user_type=='User':
                 st.error("Pincode Needs to be 6 digit numeric !")
             elif(len(contact_info)>0 and (len(contact_info)!=12 or contact_info.count('-')!=2 )):
                 st.error("Incorrect Format of Contact Number !")
-            elif(len(ln)==0 or len(fn)==0 or len(mail)==0 or len(apt_num)==0 or len(street_name)==0 or len(age)==0 or len(state_name)==0):
-                st.error("All fields are mandatory to be Filled !")
+            # elif(len(ln)==0 or len(fn)==0 or len(mail)==0 or len(apt_num)==0 or len(street_name)==0 or len(age)==0 or len(state_name)==0):
+            #     st.error("All fields are mandatory to be Filled !")
+
             else:
                 if st.checkbox("I agree to terms & conditions * ",value=False) :
                     if st.button("Submit"):
@@ -243,6 +249,7 @@ elif user_type=='User':
             st.table(lst)
 
         else:
+            
             st.header("Choose Category  ")
             st.success("Logged in with User ID : {}".format(x))
             product_qty=Get_Product_Qty()
@@ -311,6 +318,19 @@ elif user_type=='DataBase_Admin':
         password="Password!",
         database="project65"
     )
+    cur=session.cursor()
+    def GetSubscription_Record():
+        cur.execute("Select Sub.S_ID, count from ( Select S_ID, count(*) as count from Has group by S_ID ) as S, Subscription as Sub where S.S_ID = Sub.S_ID;")
+        return cur.fetchall()
+
+    def getCategory_Revenue():
+        cur.execute("Select P.C_Name as Category, sum(P.Price*C.Quantity) as TotalSales from Orders as O, Consist_of as C, Product P where C.P_ID = P.P_ID and O.O_ID = C.O_ID and MONTH(PurchaseDate) = 3 group by P.C_Name order by TotalSales desc;")
+        return cur.fetchall()
+
+    def getCategory_Revenue(x):
+        cur.execute("Select P.C_Name as Category, sum(P.Price*C.Quantity) as TotalSales from Orders as O, Consist_of as C, Product P where C.P_ID = P.P_ID and O.O_ID = C.O_ID and MONTH(PurchaseDate) = %s group by P.C_Name order by TotalSales desc;",(x,))
+        return cur.fetchall()
+
     st.info("\t\t\tData Base Admin Portal")
     helper.cart={}
     helper.order_Value=0
@@ -319,10 +339,60 @@ elif user_type=='DataBase_Admin':
         st.subheader("Appointing New Category Manager")
 
     elif (option=="Analyse Orders Revenue Record"):
-        st.subheader("Analysing Revenue Year Wise")
+        helper.cart={}
+        helper.order_Value=0
+        st.subheader("Analysing Revenue Month Wise")
+        x=st.sidebar.selectbox("Select the Month To Analayse",["1","2",'3','4','5','6','7','8','9','10','11','12'])
+        lst=getCategory_Revenue(x)
+        df=pd.DataFrame(lst,columns=["Category","Revenue"])
+        #Side Bar
+        st.sidebar.header(" Please Filter Here : ")
+        Category=st.sidebar.multiselect("Select the Category:",options=df["Category"].unique(),default=df["Category"].unique())
+        df_selection=df.query("Category== @Category")
+        # st.dataframe(df_selection)
+
+        st.title(":bar_chart: Revenue Dashboard")
+        st.markdown("##")
+
+        total_revenue=int(df_selection["Revenue"].sum())
+        left,mid,right=st.columns(3)
+        month=["January","Feburary","March","April","May","June","July","August","September","October","November","December"]
+        with left:
+            st.subheader("Total Revenue in "+ str(month[int(x)-1]))
+            st.subheader(f"₹ {total_revenue:,}")
+        st.markdown("---")
+        
+        final_plot=px.bar(
+            df,
+            x='Revenue',
+            y='Category',
+            orientation='h',
+            color_discrete_sequence=["green"]*len(df),
+            template="plotly_white",
+        )
+        final_plot.update_layout(
+            plot_bgcolor="rgba(1,1,1,1)",
+            xaxis=(dict(showgrid=False))
+        )
+        st.plotly_chart(final_plot)
 
     else :
         st.subheader("Analysing Subscriptions Record")
+        x_axis=['Subscription ID','Number of Purchases']
+        lst=GetSubscription_Record()
+        data={}
+        for i in range(len(lst)):
+            data[lst[i][0]]=lst[i][1]
+        subscription_ids=list(data.keys())
+        Number_Of_Users=list(data.values())
+        plt.bar(subscription_ids, Number_Of_Users, color ='yellow',width = 0.4)
+        plt.xlabel("Subscription ID")
+        plt.ylabel("Number of Users enrolled")
+        plt.title("Plot of Subscription vs Number of Puchases")
+        fig=plt.show()        
+        st.set_option('deprecation.showPyplotGlobalUse', False)
+        st.pyplot(fig)
+
 
 elif user_type=='Employee':
     helper.cart={}
