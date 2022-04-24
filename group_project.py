@@ -10,7 +10,7 @@ user_type=st.sidebar.selectbox("Select the User",["DataBase_Admin",'User','Vendo
 st.title("ShOpSTop")
 
 if(user_type=='Vendor'):
-    st.header("\t\t\tVendors Portal  ")
+    st.info("\t\t\tVendors Portal  ")
     session=mysql.connector.connect(
         host="127.0.0.1",
         port=3306,
@@ -66,10 +66,10 @@ if(user_type=='Vendor'):
                     st.success("Successfully Changed!")
             session.close()
     else:
-        st.info("Please enter your Vendor ID to sign in ")
+        st.write("Please enter your Vendor ID to sign in ")
 
 elif user_type=='User':
-    st.header("\t\t\tWelcome To Our Store ")
+    st.info("\t\t\tWelcome To Our Store ")
     session=mysql.connector.connect(
         host="127.0.0.1",
         port=3306,
@@ -311,9 +311,18 @@ elif user_type=='DataBase_Admin':
         password="Password!",
         database="project65"
     )
-    st.header("\t\t\tData Base Admin Portal")
+    st.info("\t\t\tData Base Admin Portal")
     helper.cart={}
     helper.order_Value=0
+    option=st.sidebar.selectbox("Drop Down Menu ",["Appoint New Category Manager","Analyse Orders Revenue Record","Analyse Subscriptions Record"])
+    if(option=="Appoint New Category Manager"):
+        st.subheader("Appointing New Category Manager")
+
+    elif (option=="Analyse Orders Revenue Record"):
+        st.subheader("Analysing Revenue Year Wise")
+
+    else :
+        st.subheader("Analysing Subscriptions Record")
 
 elif user_type=='Employee':
     helper.cart={}
@@ -325,7 +334,7 @@ elif user_type=='Employee':
         password="Group65@123",
         database="project65"
     )
-    st.header("\t\t\tEmployee Portal ")
+    st.info("\t\t\tEmployee Portal ")
 
     def Employee_Info(id):
         cur.execute("Select * from Employee_details where E_ID=%s",(id,))
@@ -338,7 +347,7 @@ elif user_type=='Employee':
     cur=session.cursor()
     x=st.sidebar.text_input("Employee ID")
     if(x==''):
-        st.info("Enter your Employee ID ")
+        st.write("Enter your Employee ID ")
     else:
         st.success("Logged in with Employee ID : {}".format(x))
         option=st.sidebar.selectbox("Menu ",["Personal Information","Current Position"])
@@ -366,7 +375,7 @@ else:
         password="Group65@123",
         database="project65"
     )
-    st.header( "\t\t\tDelivery Agent Portal ")
+    st.info( "\t\t\tDelivery Agent Portal ")
     helper.cart={}
     helper.order_Value=0
     def DA_Info(id):
@@ -387,7 +396,7 @@ else:
     cur=session.cursor()
     x=st.sidebar.text_input("Delivery Agent ID (D_ID)")
     if(x==''):
-        st.info("Enter Delivery_Agent ID to sign into your account !")
+        st.write("Enter Delivery_Agent ID to sign into your account !")
     else:
         st.success("Logged in with Delivery_Agent ID : {}".format(x))
         option=st.sidebar.selectbox("Menu ",["Personal Information","Order History","Deliver A Pending Order"])
