@@ -397,7 +397,7 @@ def main():
                 template="plotly_white",
             )
             final_plot.update_layout(
-                plot_bgcolor="rgba(1,1,1,1)",
+                plot_bgcolor="rgba(0,0,0,0)",
                 xaxis=(dict(showgrid=False))
             )
             st.plotly_chart(final_plot)
